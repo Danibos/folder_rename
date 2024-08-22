@@ -16,7 +16,9 @@ Python 3: The script is compatible with Python 3.
 
 TMDB API Key: You'll need an API key from TMDB to use the script.
 
+
 Usage
+
 
 Set up your environment:
 
