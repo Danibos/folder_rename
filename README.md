@@ -1,6 +1,7 @@
 Movie Folder Renamer
 
-With the help of AI, I've created this script to rename my movie folders. The script can rename folders by replacing the original movie title with the title from a selected country, and it will also add the release year and the director’s name.
+With the help of AI, I've created this script to rename my movie folders. 
+The script can rename folders by replacing the original movie title with the title from a selected country, and it will also add the release year and the director’s name.
 
 Features
 
@@ -12,7 +13,9 @@ Supports Multiple Languages: You can change the language of the movie title by m
 Requirements
 
 Python 3: The script is compatible with Python 3.
+
 TMDB API Key: You'll need an API key from TMDB to use the script.
+
 Usage
 
 Set up your environment:
