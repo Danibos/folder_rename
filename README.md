@@ -21,26 +21,32 @@ Usage
 Set up your environment:
 
 Clone this repository to your local machine.
+
 Install the required Python packages using pip install requests.
+
 
 Edit the Script:
 
 Open the script and add your TMDB API key.
+
 (Optional) Change the language for the movie titles by modifying the LANGUAGE variable.
 
 Run the Script:
 
 Place the script in the directory containing your movie folders.
+
 Run the script, and it will automatically rename the folders based on the movie information.
 
 Example
 
 Before: Saturday Night Fever (1977)
+
 After: Fiebre del sábado noche (1977) John Badham
 
 Notes
 
 Ensure your movie folders contain .nfo files with metadata for accurate renaming.
+
 If a director’s name isn’t found in the .nfo file, the script will attempt to retrieve it from TMDB.
 
 License
