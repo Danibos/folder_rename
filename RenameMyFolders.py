@@ -41,8 +41,21 @@ def has_correct_format(folder_name):
 
 def parse_title_year(file_name):
     """Extract title and year from filename. Returns (title, year:str) or (title, None) if year invalid/missing."""
-    # First normalize the filename
     file_name = normalize_unicode(file_name)
+    
+    # Replace dots with spaces for dot-separated names (e.g. One.More.Shot.2025.1080p...)
+    # Only do this if there's no spaces (typical scene release format)
+    if ' ' not in file_name and '.' in file_name:
+        file_name = file_name.replace('.', ' ')
+    
+    # Strip known junk tokens that appear after the year (resolution, codec, source tags)
+    file_name = re.sub(
+        r'\s*(480p|720p|1080p|2160p|4K|UHD|HDR|SDR|BluRay|BDRip|BRRip|WEBRip|WEB-DL|'
+        r'HDTV|DVDRip|x264|x265|H\.?264|H\.?265|HEVC|AVC|AAC|AC3|DTS|'
+        r'REMUX|PROPER|REPACK|EXTENDED|DIRECTORS?\.?CUT|UNRATED).*',
+        '', file_name, flags=re.IGNORECASE
+    ).strip()
+
     pattern = re.compile(r"(.*?)\s*\((\d{4})\)")
     match = pattern.search(file_name)
     if match:
@@ -53,6 +66,10 @@ def parse_title_year(file_name):
         else:
             return title, None
     else:
+        # Also try bare year without parentheses (scene format: Title 2025 junk)
+        match = re.search(r"^(.*?)\s+((?:19|20)\d{2})\b", file_name)
+        if match:
+            return match.group(1).strip(), match.group(2).strip()
         title = os.path.splitext(file_name)[0].strip()
         return title, None
 
@@ -63,15 +80,22 @@ def get_movie_info(title, year=None):
         clean_year = year if year and isinstance(year, str) and year.isdigit() and len(year) == 4 else None
         results = search.movies(title)
         if results:
-            # If year is provided, try to find exact match
             if clean_year:
                 for m in results:
                     release_year = ''
-                    if hasattr(m, 'release_date') and m.release_date and len(m.release_date) >= 4:
-                        release_year = m.release_date[:4]
-                    if release_year == str(clean_year):
+                    try:
+                        rd = None
+                        if isinstance(m, dict):
+                            rd = m.get('release_date', '') or ''
+                        elif hasattr(m, 'release_date'):
+                            rd = str(m.release_date) if m.release_date else ''
+                        if isinstance(rd, str) and len(rd) >= 4:
+                            release_year = rd[:4]
+                    except (TypeError, AttributeError, ValueError):
+                        pass
+
+                    if release_year == clean_year:
                         return m
-            # Fallback to first result
             return results[0]
         else:
             print(f"No results found for: {title} ({year})")
