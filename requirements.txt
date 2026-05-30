@@ -1,2 +1,3 @@
 requests
 tmdbv3api
+PyQt6>=6.0.0
