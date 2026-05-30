@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 import unicodedata
 import platform
 import xml.etree.ElementTree as ET
+import shutil
 
 # Initialize TMDb and search objects with your API key
 api_key = ''
@@ -38,6 +39,20 @@ def is_hidden_or_system_file(name):
 def has_correct_format(folder_name):
     """Checks if folder_name matches 'Title (Year) Director' format."""
     return re.match(r".+ \(\d{4}\) .+", folder_name) is not None
+
+def is_video_file(file_name):
+    """Check if file is a video file."""
+    video_extensions = ['.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.m4v', '.webm']
+    return any(file_name.lower().endswith(ext) for ext in video_extensions)
+
+def is_metadata_file(file_name):
+    """Check if file is metadata/subtitle/nfo file."""
+    metadata_extensions = ['.nfo', '.srt', '.ass', '.ssa', '.sub', '.txt']
+    return any(file_name.lower().endswith(ext) for ext in metadata_extensions)
+
+def is_movie_related_file(file_name):
+    """Check if file is a movie-related file (video, subtitle, metadata)."""
+    return is_video_file(file_name) or is_metadata_file(file_name)
 
 def parse_title_year(file_name):
     """Extract title and year from filename. Returns (title, year:str) or (title, None) if year invalid/missing."""
@@ -238,6 +253,88 @@ def rename_files_in_folder(folder_path, movie_info):
     except Exception as e:
         print(f"Error renaming files in folder: {e}")
 
+def create_folder_for_loose_file(base_directory, file_name):
+    """Create a folder for a loose file and move the file into it."""
+    try:
+        print(f"\n📁 Processing loose file: {file_name}")
+        
+        title, year = parse_title_year(file_name)
+        movie_info = get_movie_info(title, year)
+        director_clean = ""
+        
+        if movie_info:
+            # Try to get director from TMDB
+            director_name = get_director_name(movie_info.id)
+            title_clean = sanitize_filename(movie_info.title) if (hasattr(movie_info, 'title') and 
+                                                                  movie_info.title) else sanitize_filename(title)
+            director_clean = sanitize_filename(director_name) if director_name else ""
+            year_folder = movie_info.release_date[:4] if (hasattr(movie_info, "release_date") and 
+                                                         movie_info.release_date) else (year if year else "")
+        else:
+            print(f"No TMDB info found for {title} ({year}), using fallback!")
+            title_clean = sanitize_filename(title)
+            year_folder = year if year else ""
+        
+        if not title_clean or not year_folder:
+            print(f"Cannot create folder: missing title or year.")
+            return False
+        
+        folder_name = f"{title_clean} ({year_folder}) {director_clean}".strip()
+        folder_name = re.sub(r'\s{2,}', ' ', folder_name)
+        folder_path = os.path.join(base_directory, folder_name)
+        
+        # Create folder if it doesn't exist
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
+            print(f"✓ Created folder: {folder_name}")
+        else:
+            print(f"Folder already exists: {folder_name}")
+        
+        # Move the loose file to the new folder
+        old_file_path = os.path.join(base_directory, file_name)
+        new_file_path = os.path.join(folder_path, file_name)
+        
+        if not os.path.exists(new_file_path):
+            try:
+                shutil.move(old_file_path, new_file_path)
+                print(f"✓ Moved file to folder: {file_name}")
+            except Exception as e:
+                print(f"Error moving file: {e}")
+                return False
+        
+        # Rename files in the folder if TMDB info found
+        if movie_info:
+            rename_files_in_folder(folder_path, movie_info)
+            update_or_create_nfo(folder_path, movie_info)
+        
+        return True
+        
+    except Exception as e:
+        print(f"Error processing loose file {file_name}: {e}")
+        return False
+
+def process_loose_files(base_directory):
+    """Find and process movie files that are directly in base_directory without a folder."""
+    try:
+        loose_files = [f for f in os.listdir(base_directory)
+                      if os.path.isfile(os.path.join(base_directory, f))
+                      and is_movie_related_file(f)
+                      and not is_hidden_or_system_file(f)
+                      and is_video_file(f)]  # Only process video files, not subtitles/nfo
+        
+        if loose_files:
+            print(f"\n{'='*60}")
+            print(f"Found {len(loose_files)} loose video file(s) to organize")
+            print(f"{'='*60}")
+            
+            for file_name in loose_files:
+                create_folder_for_loose_file(base_directory, file_name)
+        else:
+            print("No loose video files found to organize")
+            
+    except Exception as e:
+        print(f"Error processing loose files: {e}")
+
 def rename_folder_with_tmdb_info(folder_path):
     """Rename folder using Spanish Title (year) Director, rename files inside, clean up duplicates, update NFO."""
     try:
@@ -336,6 +433,12 @@ def rename_folders_parallel(base_directory, max_workers=None):
             max_workers = 8
     
     try:
+        # First, process any loose files
+        print("Step 1: Organizing loose video files...")
+        process_loose_files(base_directory)
+        
+        # Then process folders
+        print("\nStep 2: Processing movie folders...")
         folder_paths = [os.path.join(base_directory, item_name)
                        for item_name in os.listdir(base_directory)
                        if os.path.isdir(os.path.join(base_directory, item_name))
